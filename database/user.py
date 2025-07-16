@@ -2,14 +2,17 @@ import aiosqlite
 
 DB_PATH = "database/database.db"
 
-# 🔹 1. Foydalanuvchini bazaga qo‘shish (agar yo‘q bo‘lsa)
+# 🔹 1. Foydalanuvchini bazaga qo‘shish (faqat yangi bo‘lsa)
 async def add_user(user_id: int, full_name: str, referal_id: int = None):
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            INSERT OR IGNORE INTO users (user_id, full_name, referal_id, stars)
-            VALUES (?, ?, ?, 0)
-        """, (user_id, full_name, referal_id))
-        await db.commit()
+        async with db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            exists = await cursor.fetchone()
+        if not exists:
+            await db.execute("""
+                INSERT INTO users (user_id, full_name, referal_id, stars)
+                VALUES (?, ?, ?, 0)
+            """, (user_id, full_name, referal_id))
+            await db.commit()
 
 # 🔹 2. Referalga 1 yulduz qo‘shish
 async def add_referral_star(user_id: int):
@@ -22,13 +25,11 @@ async def add_referral_star(user_id: int):
 # 🔹 3. Foydalanuvchining yulduzlari
 async def get_user_stars(user_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-            SELECT stars FROM users WHERE user_id = ?
-        """, (user_id,)) as cursor:
+        async with db.execute("SELECT stars FROM users WHERE user_id = ?", (user_id,)) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
-# 🔹 4. Foydalanuvchilar ro‘yxati (broadcast uchun)
+# 🔹 4. Foydalanuvchilar ro‘yxati
 async def get_all_users() -> list[int]:
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT user_id FROM users") as cursor:
